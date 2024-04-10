@@ -250,6 +250,37 @@ class Transformer(tf.keras.Model):
     # Return the final output and the attention weights.
     return logits
 
+class ComposedTransformer(tf.keras.Model):
+  def __init__(self, encoder, decoder, target_vocab_size):
+    super().__init__()
+    self.encoder = encoder
+
+    self.decoder = decoder
+
+    self.final_layer = tf.keras.layers.Dense(target_vocab_size)
+
+  def call(self, inputs):
+    # To use a Keras model with `.fit` you must pass all your inputs in the
+    # first argument.
+    context, x  = inputs
+
+    context = self.encoder(context)  # (batch_size, context_len, d_model)
+
+    x = self.decoder(x, context)  # (batch_size, target_len, d_model)
+
+    # Final linear layer output.
+    logits = self.final_layer(x)  # (batch_size, target_len, target_vocab_size)
+
+    try:
+      # Drop the keras mask, so it doesn't scale the losses/metrics.
+      # b/250038731
+      del logits._keras_mask
+    except AttributeError:
+      pass
+
+    # Return the final output and the attention weights.
+    return logits
+
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
   def __init__(self, d_model, warmup_steps=4000):
     super().__init__()
